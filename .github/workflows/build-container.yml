@@ -34,6 +34,8 @@ jobs:
           push: true
           build-args: |
             BASE_IMAGE=runpod/comfyui-wizard:kd77mz3yg6s68yyyerb3pg6a018f2qte
-          tags: ghcr.io/${{ github.repository_owner }}/runpod-minimax-video-worker:latest
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/runpod-minimax-video-worker:latest
+            ghcr.io/${{ github.repository_owner }}/runpod-minimax-video-worker:compat-v1
           provenance: false
           sbom: false
