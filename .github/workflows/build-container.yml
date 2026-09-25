@@ -7,6 +7,7 @@ on:
     paths:
       - Dockerfile
       - handler.py
+      - runpod_minimax_compat/**
       - .github/workflows/build-container.yml
 
 permissions:
