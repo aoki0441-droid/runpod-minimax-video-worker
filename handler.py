@@ -70,7 +70,9 @@ REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
 MODEL_LOADER_NODES = {
     "CheckpointLoaderSimple": ("checkpoints", ("ckpt_name",)),
     "LoraLoader": ("loras", ("lora_name",)),
+    "LoraLoaderModelOnly": ("loras", ("lora_name",)),
     "VAELoader": ("vae", ("vae_name",)),
+    "CLIPLoader": ("text_encoders", ("clip_name",)),
     "DualCLIPLoader": ("text_encoders", ("clip_name1", "clip_name2")),
     "TripleCLIPLoader": ("text_encoders", ("clip_name1", "clip_name2", "clip_name3")),
     "UNETLoader": ("diffusion_models", ("unet_name",)),

@@ -1,0 +1,26 @@
+# Manual, on-Pod build only. NOT built by GitHub Actions CI (see
+# .github/workflows/build-container.yml — it only watches Dockerfile,
+# handler.py, runpod_minimax_compat/**). Never commit the ~41GB model files
+# this Dockerfile COPYs; ./models/ is gitignored.
+#
+# Build from the already-published handler image so we don't need
+# --build-arg BASE_IMAGE again here:
+#
+#   docker build -f Dockerfile.baked -t ghcr.io/<user>/runpod-minimax-video-worker:baked-v1 .
+#   docker push ghcr.io/<user>/runpod-minimax-video-worker:baked-v1
+#
+# Expects ./models/ staged with the exact layout ComfyUI itself uses, e.g.:
+#   models/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+#   models/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+#   models/vae/minimax_h3_video_vae_fp16.safetensors
+#   models/vae/minimax_h3_audio_vae_fp32.safetensors
+#
+# See README.md for how to stage these from the Pod's Network Volume without
+# double-copying 41GB.
+
+FROM ghcr.io/aoki0441-droid/runpod-minimax-video-worker:latest
+
+COPY models/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors /comfyui/models/diffusion_models/
+COPY models/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors /comfyui/models/text_encoders/
+COPY models/vae/minimax_h3_video_vae_fp16.safetensors /comfyui/models/vae/
+COPY models/vae/minimax_h3_audio_vae_fp32.safetensors /comfyui/models/vae/
