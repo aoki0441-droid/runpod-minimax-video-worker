@@ -81,15 +81,16 @@ MODEL_LOADER_NODES = {
     "UpscaleModelLoader": ("upscale_models", ("model_name",)),
 }
 
-# Where each model type lives on the network volume (see
-# src/extra_model_paths.yaml — text encoders mount under clip/ and diffusion
-# models under unet/, their legacy ComfyUI directory names).
+# Where each model type lives on the mounted volume (Global Volume for
+# Serverless mounts at /runpod-volume; see extra_model_paths.yaml in this
+# repo, which maps these same modern ComfyUI category names — not the
+# legacy unet/clip directory names — onto that volume).
 MODEL_TYPE_VOLUME_DIRS = {
     "checkpoints": "/runpod-volume/models/checkpoints/",
     "loras": "/runpod-volume/models/loras/",
     "vae": "/runpod-volume/models/vae/",
-    "text_encoders": "/runpod-volume/models/clip/",
-    "diffusion_models": "/runpod-volume/models/unet/",
+    "text_encoders": "/runpod-volume/models/text_encoders/",
+    "diffusion_models": "/runpod-volume/models/diffusion_models/",
     "upscale_models": "/runpod-volume/models/upscale_models/",
 }
 

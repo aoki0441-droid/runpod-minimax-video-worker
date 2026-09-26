@@ -17,57 +17,81 @@ RunPod公式 `worker-comfyui` のHandlerを基に、ComfyUI `SaveVideo` のMP4/W
 `comfy_api_nodes`（Comfyアカウント・クレジット課金のPartner Node）ではなく、
 ComfyUI本体にネイティブ搭載された `comfy_extras/nodes_minimax_h3.py` の
 `MiniMaxH3ImageToVideo` によるローカルGPU推論。Comfy認証・クレジットは不要。
-かつてこのリポジトリにあった `runpod_minimax_compat` カスタムノード（Comfy Partner Node向けの
-認証偽装）は誤った対象を狙ったもので、Dockerfileからは外した（フォルダ自体はgit履歴に残す）。
 
-必要なのはモデル重み（下記）をイメージに焼き込むことだけ。
+## モデル配置方式：Global Volume（2026-09-26〜、現在の方針）
 
-## ビルド（Handlerのみ・CI自動公開）
+モデル重み（約41GB、内訳は下記）は**Dockerイメージへは焼き込まない**。理由は2つ：
+
+1. RunPodのNetwork Volumeは特定データセンターに固定され、そのデータセンターでGPUの空きが
+   無いとPod/Serverlessが動かせない。焼き込みはこれを回避する目的だったが、
+2. 2026-09-26に、41GBをDockerイメージへ焼き込む手動ビルド（`Dockerfile.baked`、Pod上でのkaniko実行）を
+   試みた際、ビルド先パスに残っていたシンボリックリンクをkanikoが辿って
+   **本番のモデル実体ファイルを0バイトに破壊する事故**が発生した（`git log`参照）。
+   `Dockerfile.baked` はこの事故を機に廃止し、削除した。
+
+代わりに **RunPod Global Volume**（2026年ベータ、リージョン非依存のストレージ）を使う。
+Network Volumeと違い特定データセンターに縛られず、「一度書き込めばどのデータセンターの
+Pod/Workerからでも同じファイルにアクセスできる」。Serverless Workerの内部からは
+Network VolumeもGlobal Volumeも同じパス `/runpod-volume` にマウントされる。
+参照: https://docs.runpod.io/storage/globalvolume/globalvolume-serverless
+
+モデルの配置レイアウトは、Global Volumeの `models/` 以下に、ComfyUIの現行カテゴリ名
+（`diffusion_models` / `text_encoders` / `vae` などで、`unet` / `clip` という旧称ではない）
+のディレクトリを作り、そこへ配置する：
+
+```
+<Global Volume>/models/
+├── diffusion_models/
+│   └── minimax_h3_fl2va_pruned_int8_convrot.safetensors   (約19.5GB)
+├── text_encoders/
+│   └── qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors        (約15.7GB)
+└── vae/
+    ├── minimax_h3_video_vae_fp16.safetensors               (約5.2GB)
+    └── minimax_h3_audio_vae_fp32.safetensors                (約605MB)
+```
+
+配置方法：Global Volumeをアタッチした（モデル無しの）一時Podを立て、公式配布元から
+直接ダウンロードする。Dockerや`ln -s`は使わない（前回の事故の再発防止）。
+
+```bash
+mkdir -p /workspace/models/diffusion_models /workspace/models/text_encoders /workspace/models/vae
+cd /workspace/models
+wget -O diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors \
+  https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+wget -O text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors \
+  https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+wget -O vae/minimax_h3_video_vae_fp16.safetensors \
+  https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors
+wget -O vae/minimax_h3_audio_vae_fp32.safetensors \
+  https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors
+```
+
+ダウンロード後、サイズが上記の想定値と一致することを確認してからPodを削除する
+（Global Volumeのデータはそのまま残る）。
+
+このリポジトリの `extra_model_paths.yaml` が、ComfyUIへ「`/runpod-volume/models/` 以下も
+モデル置き場として見る」ことを教える。`Dockerfile` がこれをイメージへ組み込む
+（`/comfyui/extra_model_paths.yaml`）。`handler.py` の `MODEL_TYPE_VOLUME_DIRS` も
+同じパスを参照するので、フォルダ名を変える場合は両方を直す。
+
+## ビルド（CI自動公開・モデル無し）
 
 `Dockerfile` は `.github/workflows/build-container.yml` がpush時に自動ビルドし、
 `runpod/comfyui-wizard:kd77mz3yg6s68yyyerb3pg6a018f2qte`（Podと同系統のベースイメージ）を土台に
-`ghcr.io/<GitHubユーザー名>/runpod-minimax-video-worker:latest` / `:compat-v2` を公開する。
-モデル重みは含まれない。
+`ghcr.io/<GitHubユーザー名>/runpod-minimax-video-worker:latest` を公開する。
+モデル重みは含まれない（Global Volume側にあるため、含める必要が無くなった）。
 
 ```powershell
 docker build --build-arg BASE_IMAGE=runpod/comfyui-wizard:kd77mz3yg6s68yyyerb3pg6a018f2qte -t <レジストリ名>/minimax-h3-video-worker:1 .
 docker push <レジストリ名>/minimax-h3-video-worker:1
 ```
 
-## ビルド（モデル重み込み・手動・Pod上で実行）
+## RunPod Serverless Endpointの設定
 
-**41GBのモデルファイルはgitへコミットしない。CIもこのビルドには使わない。**
-`Dockerfile.baked` は上記のCI公開イメージを土台に、モデル4ファイルだけを追加で焼き込む。
-
-Pod（Network Volumeがマウント済みで、モデルが既にある環境）上で実行するのが最速（41GBの転送を避けられる）。
-
-```bash
-# Pod上で、このリポジトリを取得
-git clone https://github.com/aoki0441-droid/runpod-minimax-video-worker.git
-cd runpod-minimax-video-worker
-
-# Network Volume上の実ファイルをビルドコンテキストへシンボリックリンク（コピーしない）
-mkdir -p models/diffusion_models models/text_encoders models/vae
-ln -s /workspace/runpod-slim/ComfyUI/models/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors models/diffusion_models/
-ln -s /workspace/runpod-slim/ComfyUI/models/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors models/text_encoders/
-ln -s /workspace/runpod-slim/ComfyUI/models/vae/minimax_h3_video_vae_fp16.safetensors models/vae/
-ln -s /workspace/runpod-slim/ComfyUI/models/vae/minimax_h3_audio_vae_fp32.safetensors models/vae/
-
-# Dockerがシンボリックリンクの実体をコピーできるよう、COPYではなくビルド時にDockerの
-# --dereference相当が必要な場合は、シンボリックリンクの代わりに実ファイルコピーへ切り替える
-# （下記「注意」参照）。
-
-docker login ghcr.io -u <GitHubユーザー名>
-docker build -f Dockerfile.baked -t ghcr.io/<GitHubユーザー名>/runpod-minimax-video-worker:baked-v1 .
-docker push ghcr.io/<GitHubユーザー名>/runpod-minimax-video-worker:baked-v1
-```
-
-注意：`docker build` の `COPY` はDockerデーモンの実装によりシンボリックリンクをそのまま
-（リンクとして）コピーしてしまう場合がある。ビルド後に生成イメージ内でファイルサイズを
-確認し、リンク切れ（数バイトしかない）なら `ln -s` の代わりに `cp` で実体をコピーする。
-
-ビルド完了後、RunPod EndpointのReleaseまたはTemplateでコンテナイメージを
-`ghcr.io/<GitHubユーザー名>/runpod-minimax-video-worker:baked-v1` へ変更し、再デプロイする。
+1. Global Volume（上記でモデルを配置したもの）を作成・アタッチする。
+2. コンテナイメージに `ghcr.io/<GitHubユーザー名>/runpod-minimax-video-worker:latest` を指定する。
+3. Network Volumeは使わない（使うとそのデータセンターにEndpointが固定され、Global Volumeの
+   リージョン非依存という利点が失われる）。
 
 ## 推奨設定
 

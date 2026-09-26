@@ -7,7 +7,7 @@ on:
     paths:
       - Dockerfile
       - handler.py
-      - runpod_minimax_compat/**
+      - extra_model_paths.yaml
       - .github/workflows/build-container.yml
 
 permissions:
@@ -36,6 +36,5 @@ jobs:
             BASE_IMAGE=runpod/comfyui-wizard:kd77mz3yg6s68yyyerb3pg6a018f2qte
           tags: |
             ghcr.io/${{ github.repository_owner }}/runpod-minimax-video-worker:latest
-            ghcr.io/${{ github.repository_owner }}/runpod-minimax-video-worker:compat-v2
           provenance: false
           sbom: false

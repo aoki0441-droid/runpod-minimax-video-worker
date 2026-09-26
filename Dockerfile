@@ -15,3 +15,9 @@ FROM ${BASE_IMAGE}
 # runs never touches comfy.org auth or credits. That overlay is intentionally
 # dropped; see runpod_minimax_compat/ in git history if it's ever needed again.
 COPY handler.py /handler.py
+
+# Registers /runpod-volume/models/{diffusion_models,text_encoders,vae,...}
+# (a mounted Network Volume or Global Volume) as extra places ComfyUI looks
+# for model weights, alongside its own built-in /comfyui/models/. See
+# extra_model_paths.yaml for why this uses modern category names.
+COPY extra_model_paths.yaml /comfyui/extra_model_paths.yaml

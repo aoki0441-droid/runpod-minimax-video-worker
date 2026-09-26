@@ -1,0 +1,20 @@
+# Tells ComfyUI to also search the mounted volume for model weights.
+#
+# On Runpod Serverless, a Network Volume OR a Global Volume both mount at
+# the same path: /runpod-volume. A Global Volume is region-independent
+# (unlike a Network Volume, which pins the endpoint to one datacenter), so
+# it's the one we use for the ~41GB MiniMax H3 weights — see
+# https://docs.runpod.io/storage/globalvolume/globalvolume-serverless
+#
+# Keys here are modern ComfyUI model-category names (the same names
+# UNETLoader/CLIPLoader/VAELoader actually query internally), not the old
+# unet/clip directory names. Keep this in sync with MODEL_TYPE_VOLUME_DIRS
+# in handler.py.
+runpod_volume:
+  base_path: /runpod-volume/models/
+  checkpoints: checkpoints/
+  loras: loras/
+  vae: vae/
+  text_encoders: text_encoders/
+  diffusion_models: diffusion_models/
+  upscale_models: upscale_models/
